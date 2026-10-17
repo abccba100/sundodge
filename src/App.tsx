@@ -14,7 +14,22 @@ import { DepartureChart } from './ui/DepartureChart';
 
 type Computed = Extract<FromWorker, { type: 'computed' }>;
 
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+/** A few places to fly to before pressing "Load this view" (the map has no base tiles to browse by). */
+const PLACES: { name: string; c: LngLat }[] = [
+  { name: 'London, Westminster', c: [-0.1276, 51.5007] },
+  { name: 'Paris, Opéra', c: [2.3319, 48.8719] },
+  { name: 'Tempe, Arizona (ASU)', c: [-111.9341, 33.4242] },
+  { name: 'Barcelona, Eixample', c: [2.1650, 41.3917] },
+  { name: 'Tokyo, Shinjuku', c: [139.7003, 35.6905] },
+  { name: 'Singapore, CBD', c: [103.8514, 1.2834] },
+  { name: 'Daejeon, Dunsan-dong', c: [127.3845, 36.3504] },
+];
 const BASE = import.meta.env.BASE_URL;
 
 const emptyFC = (): GeoJSON.FeatureCollection => ({ type: 'FeatureCollection', features: [] });
@@ -51,6 +66,7 @@ export default function App() {
   const [liveAsk, setLiveAsk] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
+  const [hint, setHint] = useState(false);
 
   const depart = useMemo(() => zonedToDate(day, minute, area.tz), [day, minute, area.tz]);
   const sunInfo = useMemo(
@@ -273,6 +289,7 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
+    setWeather(null); // never show the previous area's or day's weather while the new one loads
     const lat = (area.bounds[1] + area.bounds[3]) / 2, lng = (area.bounds[0] + area.bounds[2]) / 2;
     fetchWeather(lat, lng, day, area.tz).then((w) => { if (alive) setWeather(w); });
     return () => { alive = false; };
@@ -302,6 +319,7 @@ export default function App() {
     const a = DEMO_AREAS.find((x) => x.id === id);
     if (!a) return;
     resetForSwitch();
+    setHint(false);
     setArea(a); setDay(a.date); setMinute(parseClock(a.time)); setFrom(a.from); setTo(a.to);
     loadDemo(a);
   };
@@ -319,6 +337,21 @@ export default function App() {
     return [c.lng - halfW / kx, c.lat - halfH / ky, c.lng + halfW / kx, c.lat + halfH / ky];
   };
 
+  const goTo = (c: LngLat) => {
+    map.current?.flyTo({ center: c, zoom: 16, pitch: 45, bearing: -12, duration: 1500 });
+    setError(null);
+    setLoading(null);
+    setHint(true);
+  };
+  const myLocation = () => {
+    if (!navigator.geolocation) { setError('This browser cannot share its location.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      (p) => goTo([p.coords.longitude, p.coords.latitude]),
+      () => setError('Could not get your location (permission denied or unavailable).'),
+      { timeout: 15000 },
+    );
+  };
+
   const lastLive = useRef(0);
   const loadLive = async () => {
     setLiveAsk(false);
@@ -329,22 +362,34 @@ export default function App() {
     if (!bb) return;
     const token = ++loadToken.current;
     setError(null);
+    setHint(false);
     setLoading('Downloading streets, buildings and trees from OpenStreetMap…');
     const q = overpassQuery(bb);
     let json: { elements?: unknown[]; remark?: string } | null = null;
     let problem = '';
-    for (const ep of OVERPASS) {
-      try {
-        const r = await fetch(ep, { method: 'POST', body: new URLSearchParams({ data: q }), signal: AbortSignal.timeout(100_000) });
-        if (!r.ok) { problem = `HTTP ${r.status}`; continue; }
-        const j = await r.json();
-        // Overpass reports timeouts and memory limits with HTTP 200 and a "remark"; the data is then incomplete.
-        if (!Array.isArray(j.elements) || j.remark) { problem = j.remark ? String(j.remark).slice(0, 120) : 'no data'; continue; }
-        json = j; break;
-      } catch (e) { problem = e instanceof Error ? e.name : 'network error'; }
+    // Public Overpass servers are often busy: try each one, then wait and try once more.
+    for (let round = 0; round < 2 && !json; round++) {
+      if (round > 0) {
+        setLoading('The map data servers are busy — trying again…');
+        await new Promise((r) => setTimeout(r, 5000));
+        if (token !== loadToken.current) return;
+      }
+      for (const ep of OVERPASS) {
+        try {
+          const r = await fetch(ep, { method: 'POST', body: new URLSearchParams({ data: q }), signal: AbortSignal.timeout(100_000) });
+          if (!r.ok) { problem = r.status === 429 || r.status >= 500 ? 'servers busy' : `HTTP ${r.status}`; continue; }
+          const j = await r.json();
+          // Overpass reports timeouts and memory limits with HTTP 200 and a "remark"; the data is then incomplete.
+          if (!Array.isArray(j.elements) || j.remark) { problem = j.remark ? String(j.remark).slice(0, 120) : 'no data'; continue; }
+          json = j; break;
+        } catch (e) {
+          // A busy server answers without CORS headers, which the browser reports as a network error.
+          problem = e instanceof Error && e.name === 'TimeoutError' ? 'timed out' : 'servers busy or unreachable';
+        }
+      }
     }
     if (token !== loadToken.current) return; // the user switched areas while we waited
-    if (!json) { setLoading(null); setError(`The Overpass API could not deliver this area (${problem}). It is a free shared service — please try again in a minute, or zoom in.`); return; }
+    if (!json) { setLoading(null); setError(`Could not download this area from OpenStreetMap (${problem}). The public Overpass servers are free and shared — please try again in a minute, or zoom in to a smaller area. The two demo areas always work.`); return; }
     if (json.elements!.length === 0) { setLoading(null); setError('OpenStreetMap has no streets or buildings here. Try a town or city.'); return; }
     const c: LngLat = [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
     // Use the time zone of the place on screen, not the viewer's, so clock, sunrise and weather are local.
@@ -392,6 +437,13 @@ export default function App() {
               {DEMO_AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <button className="ghost" onClick={() => setLiveAsk(true)} title="Load OpenStreetMap data for the area on screen">Load this view</button>
+          </div>
+          <div className="row goto">
+            <select aria-label="Go to a place" value="" onChange={(e) => { const p = PLACES[+e.target.value]; if (p) goTo(p.c); }}>
+              <option value="">Go to another city…</option>
+              {PLACES.map((p, i) => <option key={p.name} value={i}>{p.name}</option>)}
+            </select>
+            <button className="chip" onClick={myLocation}>My location</button>
           </div>
           <p className="story">{area.story}</p>
           {area.file && <p className="story walk">Demo walk: <strong>A</strong> {area.fromLabel} → <strong>B</strong> {area.toLabel}</p>}
@@ -486,6 +538,9 @@ export default function App() {
       <main className="mapwrap">
         <div ref={mapDiv} className="map" />
         {loading && <div className="overlay">{loading}</div>}
+        {hint && !loading && !error && (
+          <div className="overlay">Press <button className="link" onClick={() => setLiveAsk(true)}>Load this view</button> to download this area from OpenStreetMap.</div>
+        )}
         {error && <div className="overlay err" onClick={() => setError(null)}>{error}</div>}
         {result?.night && <div className="badge">The sun is at or below the horizon — every street counts as shade.</div>}
         {liveAsk && (

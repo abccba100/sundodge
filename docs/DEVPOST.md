@@ -32,7 +32,7 @@ Mainstream navigation apps route by distance or time. A few new apps and researc
   - Example: in Midtown on 2 July 2026, leaving at 15:00 instead of 14:00 cuts the demo walk's sun from 6.6 to 3.1 minutes.
 - **Honest data.** It shows what share of building heights comes from OSM tags, and can colour buildings by data quality.
 - **Weather.** Hourly feels-like and air temperature and direct radiation from Open-Meteo (reanalysis for past dates).
-- **Areas.** Jongno (Seoul) and Midtown (New York) are pre-cached. "Load this view" fetches another area of up to 2.5 km², in that place's own time zone.
+- **Areas.** Jongno (Seoul) and Midtown (New York) are pre-cached. "Go to another city…" or "My location" moves the map, and "Load this view" fetches that area (up to 2.5 km²) in the place's own time zone. Tested live in London, Tempe and Daejeon.
 
 ## How I built it
 

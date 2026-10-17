@@ -45,7 +45,8 @@ It runs in your browser with no backend of its own. It needs no account and no A
   - UV appears on forecast days only.
 - **Areas.**
   - Two areas are pre-cached: Jongno (Seoul) and Midtown (New York).
-  - "Load this view" fetches another area of up to 2.5 km² from the Overpass API, in that place's own time zone.
+  - "Go to another city…" (or "My location") moves the map, and "Load this view" then fetches that area, up to 2.5 km², from the Overpass API in the place's own time zone.
+  - Live loading was tested on the deployed site in London, Tempe (Arizona) and Daejeon (Korea) on 17 Oct 2026.
   - Accuracy depends on how well the area is mapped, which the app shows.
 
 ## Results

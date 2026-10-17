@@ -85,3 +85,5 @@ button.link { padding: 0; border: 0; background: none; color: var(--accent); fon
 .key-part { background: #f59e0b; height: 6px; }
 .key-sunny { background: #ea580c; height: 6px; }
 .covered-note { margin: 6px 0 0; }
+.row.goto { margin-top: 8px; }
+.row.goto select { font-size: 13px; }
