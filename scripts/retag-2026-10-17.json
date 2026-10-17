@@ -1,0 +1,828 @@
+{
+"_note": "Tags merged into the bundled area files on 2026-10-17. They were read with a tags-only Overpass query (out tags) for: buildings with location/layer/min_height/building:min_level, and highways with tunnel, negative layer or location. Only the keys listed here were merged; the original geometry is unchanged.",
+"_query": "way[\"building\"][\"location\"](bb);relation[\"building\"][\"location\"](bb);way[\"building\"][\"layer\"](bb);relation[\"building\"][\"layer\"](bb);way[\"building\"][\"min_height\"](bb);relation[\"building\"][\"min_height\"](bb);way[\"building\"][\"building:min_level\"](bb);relation[\"building\"][\"building:min_level\"](bb);way[\"highway\"][\"tunnel\"](bb);way[\"highway\"][\"layer\"~\"^-\"](bb);way[\"highway\"][\"location\"](bb);out tags;",
+"_osm_base": {
+"seoul-jongno": "2026-07-28T02:16:18Z (as reported by the server that answered)",
+"nyc-midtown": "2026-10-16T17:24:04Z"
+},
+"seoul-jongno": {
+"w73541400": {
+"layer": "-1"
+},
+"w141957153": {
+"layer": "-1"
+},
+"w156922847": {
+"layer": "-1"
+},
+"w302087643": {
+"layer": "-1"
+},
+"w302087645": {
+"layer": "-1"
+},
+"w302093056": {
+"layer": "-1"
+},
+"w338906150": {
+"layer": "-1"
+},
+"w338906159": {
+"layer": "-1"
+},
+"w377289806": {
+"layer": "-1"
+},
+"w377289811": {
+"layer": "-1"
+},
+"w379237471": {
+"layer": "-1"
+},
+"w379237474": {
+"layer": "-2"
+},
+"w379237476": {
+"layer": "-1"
+},
+"w380883716": {
+"layer": "-1"
+},
+"w380883718": {
+"layer": "-1"
+},
+"w380883719": {
+"layer": "-1"
+},
+"w380883722": {
+"layer": "-1"
+},
+"w380883723": {
+"layer": "-1"
+},
+"w380883724": {
+"layer": "-1"
+},
+"w446746627": {
+"layer": "-1"
+},
+"w447919203": {
+"layer": "-3"
+},
+"w447919205": {
+"layer": "-2"
+},
+"w447919206": {
+"layer": "-2"
+},
+"w447919207": {
+"layer": "-2"
+},
+"w447919382": {
+"layer": "-2"
+},
+"w517318140": {
+"layer": "-1"
+},
+"w607927398": {
+"layer": "-2"
+},
+"w670402099": {
+"layer": "-1"
+},
+"w709490451": {
+"layer": "-1"
+},
+"w717851361": {
+"layer": "-1"
+},
+"w770894972": {
+"layer": "-1"
+},
+"w770894973": {
+"layer": "-1"
+},
+"w997854972": {
+"layer": "-1"
+},
+"w997854973": {
+"layer": "-1"
+},
+"w1004836025": {
+"layer": "-1"
+},
+"w1004836027": {
+"layer": "-1"
+},
+"w1004836028": {
+"layer": "-1"
+},
+"w1004836038": {
+"layer": "-1"
+},
+"w1013396415": {
+"layer": "-1"
+},
+"w1013396416": {
+"layer": "-1"
+},
+"w1013396417": {
+"layer": "-1"
+},
+"w1230789310": {
+"layer": "-2"
+},
+"w1273156140": {
+"layer": "-1"
+},
+"w1317382296": {
+"layer": "-1"
+},
+"w1377706377": {
+"layer": "-1"
+},
+"w1497035351": {
+"layer": "-1"
+},
+"w1497035357": {
+"layer": "-1"
+},
+"w1497035358": {
+"layer": "-1"
+},
+"w1497035359": {
+"layer": "-1"
+},
+"w772263049": {
+"min_height": "11.5"
+},
+"w772263050": {
+"min_height": "11.5"
+},
+"w822154092": {
+"min_height": "11.5"
+},
+"w822154094": {
+"min_height": "11.5"
+},
+"w1126008672": {
+"min_height": "6"
+},
+"w1203368735": {
+"min_height": "7.5"
+},
+"w1203368736": {
+"min_height": "7.5"
+},
+"w1203368737": {
+"min_height": "7.5"
+},
+"w1203368738": {
+"min_height": "7.5"
+},
+"w1203368739": {
+"min_height": "2"
+},
+"w1222872592": {
+"min_height": "3.5"
+},
+"w1275728634": {
+"min_height": "4"
+}
+},
+"nyc-midtown": {
+"w36806910": {
+"layer": "-2"
+},
+"w380995250": {
+"layer": "-2"
+},
+"w996521784": {
+"layer": "-2"
+},
+"w1035187243": {
+"layer": "-2"
+},
+"w1035187248": {
+"layer": "-2"
+},
+"w1035187251": {
+"layer": "-2"
+},
+"w1035187253": {
+"layer": "-2"
+},
+"w1035187254": {
+"layer": "-2"
+},
+"w1035238597": {
+"layer": "-2"
+},
+"w1035238598": {
+"layer": "-2"
+},
+"w1148593540": {
+"layer": "-2"
+},
+"w1148593544": {
+"layer": "-2"
+},
+"w46520834": {
+"layer": "-1"
+},
+"w113944510": {
+"layer": "-1"
+},
+"w380991637": {
+"layer": "-1"
+},
+"w388734718": {
+"layer": "-1"
+},
+"w475109056": {
+"layer": "-1"
+},
+"w575505276": {
+"layer": "-1"
+},
+"w805577846": {
+"layer": "-1"
+},
+"w805577848": {
+"layer": "-1"
+},
+"w805577849": {
+"layer": "-1"
+},
+"w805577850": {
+"layer": "-1"
+},
+"w805743608": {
+"layer": "-1"
+},
+"w1020674674": {
+"layer": "-1"
+},
+"w1020674693": {
+"layer": "-1"
+},
+"w1020738665": {
+"layer": "-1"
+},
+"w1035187232": {
+"layer": "-1"
+},
+"w1035187247": {
+"layer": "-1"
+},
+"w1219082401": {
+"layer": "-1"
+},
+"w1219118698": {
+"layer": "-1"
+},
+"w1223826290": {
+"layer": "-1"
+},
+"w1223826291": {
+"layer": "-1"
+},
+"w1223826292": {
+"layer": "-1"
+},
+"w1223826293": {
+"layer": "-1"
+},
+"w1223826294": {
+"layer": "-1"
+},
+"w1223826295": {
+"layer": "-1"
+},
+"w1223826296": {
+"layer": "-1"
+},
+"w1223826297": {
+"layer": "-1"
+},
+"w1223826300": {
+"layer": "-1"
+},
+"w1239280960": {
+"layer": "-1"
+},
+"w1239280961": {
+"layer": "-1"
+},
+"w1289233799": {
+"layer": "-1"
+},
+"w1289233803": {
+"layer": "-1"
+},
+"w1493003748": {
+"layer": "-1"
+},
+"w513706051": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706085": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706087": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706088": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706089": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706090": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706091": {
+"layer": "-3",
+"location": "underground"
+},
+"w513706082": {
+"layer": "-2",
+"location": "underground"
+},
+"w513706093": {
+"layer": "-2",
+"location": "underground"
+},
+"w513706094": {
+"layer": "-2",
+"location": "underground"
+},
+"w513706095": {
+"layer": "-2",
+"location": "underground"
+},
+"w513706096": {
+"layer": "-2",
+"location": "underground"
+},
+"w541448646": {
+"layer": "-2",
+"location": "underground"
+},
+"w541448647": {
+"layer": "-2",
+"location": "underground"
+},
+"w541448648": {
+"layer": "-2",
+"location": "underground"
+},
+"w541448658": {
+"layer": "-2",
+"location": "underground"
+},
+"w541448659": {
+"layer": "-2",
+"location": "underground"
+},
+"w804044983": {
+"layer": "-3"
+},
+"w1031721444": {
+"layer": "-3"
+},
+"w1223951853": {
+"layer": "-4"
+},
+"w511809755": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809756": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809758": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809759": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809761": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809763": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809765": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809767": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809768": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809770": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809771": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809772": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809773": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809774": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809775": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809792": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809794": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809795": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809797": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809798": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809799": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809819": {
+"layer": "-1",
+"location": "underground"
+},
+"w511809821": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706050": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706054": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706055": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706056": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706057": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706058": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706059": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706060": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706061": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706062": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706063": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706064": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706065": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706066": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706067": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706068": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706069": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706070": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706071": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706072": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706073": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706074": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706075": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706076": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706077": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706078": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706079": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706081": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706083": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706086": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706099": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706100": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706101": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706102": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706104": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706105": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706106": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706107": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706108": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706109": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706110": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706111": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706112": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706113": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706114": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706115": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706120": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706121": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706126": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706127": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706128": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706129": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706131": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706132": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706133": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706134": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706135": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706137": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706138": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706139": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706140": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706141": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706142": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706143": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706144": {
+"layer": "-1",
+"location": "underground"
+},
+"w513706145": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448644": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448645": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448650": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448654": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448655": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448656": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448657": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448660": {
+"layer": "-1",
+"location": "underground"
+},
+"w541448661": {
+"layer": "-1",
+"location": "underground"
+},
+"w1020674696": {
+"layer": "-1",
+"location": "underground"
+},
+"w1226361702": {
+"layer": "-1",
+"location": "underground"
+},
+"w812938420": {
+"layer": "-1",
+"location": "underground"
+},
+"r11171765": {
+"layer": "-1",
+"location": "underground"
+},
+"r11171793": {
+"layer": "-2",
+"location": "underground"
+},
+"w114071252": {
+"min_height": "15"
+},
+"w258646143": {
+"min_height": "3.7"
+},
+"w264685207": {
+"building:min_level": "10"
+},
+"w265302051": {
+"building:min_level": "-1"
+}
+}
+}

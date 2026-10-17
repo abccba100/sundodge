@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fetch one area from the Overpass API and save a trimmed copy for ShadeWalk.
+// Fetch one area from the Overpass API and save a trimmed copy for SunDodge.
 // Usage: node scripts/fetch-area.mjs <id> <west> <south> <east> <north>
 // Please respect the Overpass usage policy: https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
 import { writeFileSync } from 'node:fs';
@@ -26,7 +26,7 @@ const query = `[out:json][timeout:90];
 out geom;`;
 const res = await fetch('https://overpass-api.de/api/interpreter', {
   method: 'POST',
-  headers: { 'User-Agent': 'ShadeWalk area fetcher (hackathon project)' },
+  headers: { 'User-Agent': 'SunDodge area fetcher (hackathon project)' },
   body: new URLSearchParams({ data: query }),
 });
 if (!res.ok) { console.error('Overpass error', res.status); process.exit(1); }

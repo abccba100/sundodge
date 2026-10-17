@@ -66,6 +66,8 @@ export interface RouteResult {
   sunM: number;
   sunMinutes: number;
   treeM: number;
+  /** Metres on covered ways (arcades, covered alleys, underground or indoor passages). */
+  coveredM: number;
   shadePct: number;
 }
 
@@ -123,11 +125,12 @@ export class Planner {
 
   measureRoute(edges: number[], nodes: number[], snap: Snapshot): RouteResult {
     const g = this.area.graph;
-    let len = 0, sunM = 0, treeM = 0;
+    let len = 0, sunM = 0, treeM = 0, coveredM = 0;
     for (const e of edges) {
       len += g.edgeLen[e];
       sunM += g.edgeLen[e] * snap.sun[e];
       treeM += g.edgeLen[e] * snap.tree[e];
+      if (g.edgeCovered[e]) coveredM += g.edgeLen[e];
     }
     return {
       edges, nodes,
@@ -136,6 +139,7 @@ export class Planner {
       sunM,
       sunMinutes: sunM / WALK_SPEED / 60,
       treeM,
+      coveredM,
       shadePct: len > 0 ? (1 - sunM / len) * 100 : 100,
     };
   }
@@ -145,24 +149,38 @@ export class Planner {
    * for a 10-20 minute walk this keeps the error small without a
    * time-dependent search.
    */
-  compare(src: number, dst: number, depart: Date, alpha: number) {
-    const base = this.snapshot(depart);
-    const shortest0 = this.route(src, dst, base, 1);
-    if (!shortest0) return null;
-    const mid = new Date(depart.getTime() + (shortest0.minutes / 2) * 60000);
+  compare(src: number, dst: number, depart: Date, alpha: number, shortestPathHint?: { edges: number[]; nodes: number[] } | null) {
+    // The shortest route does not depend on the sun (alpha = 1 costs plain length), so no
+    // shadow snapshot is needed to find it.
+    const g = this.area.graph;
+    const p = shortestPathHint ?? shortestPath(g, src, dst, (e) => g.edgeLen[e]);
+    if (!p) return null;
+    let lengthM = 0;
+    for (const e of p.edges) lengthM += g.edgeLen[e];
+    const mid = new Date(depart.getTime() + (lengthM / WALK_SPEED / 60 / 2) * 60000);
     const snap = this.snapshot(mid);
-    const shortest = this.measureRoute(shortest0.edges, shortest0.nodes, snap);
+    const shortest = this.measureRoute(p.edges, p.nodes, snap);
     const shady = this.route(src, dst, snap, alpha)!;
     return { snap, shortest, shady };
   }
 
+  /** The plain shortest path, by length only. */
+  shortestByLength(src: number, dst: number) {
+    const g = this.area.graph;
+    return shortestPath(g, src, dst, (e) => g.edgeLen[e]);
+  }
+
+  /** Sun exposure for one departure time (used to build the "when to leave" chart step by step). */
+  departure(src: number, dst: number, t: Date, alpha: number, p: { edges: number[]; nodes: number[] } | null) {
+    const r = this.compare(src, dst, t, alpha, p);
+    return r
+      ? { time: t, shortestSunMin: r.shortest.sunMinutes, shadySunMin: r.shady.sunMinutes, shadyMin: r.shady.minutes, shortestMin: r.shortest.minutes, night: r.snap.field.night }
+      : null;
+  }
+
   /** Sun exposure for a range of departure times. */
   departures(src: number, dst: number, times: Date[], alpha: number) {
-    return times.map((t) => {
-      const r = this.compare(src, dst, t, alpha);
-      return r
-        ? { time: t, shortestSunMin: r.shortest.sunMinutes, shadySunMin: r.shady.sunMinutes, shadyMin: r.shady.minutes, shortestMin: r.shortest.minutes, night: r.snap.field.night }
-        : null;
-    });
+    const p = this.shortestByLength(src, dst);
+    return times.map((t) => this.departure(src, dst, t, alpha, p));
   }
 }

@@ -1,6 +1,6 @@
-// Keep only what ShadeWalk reads, so bundled area files stay small.
-const KEEP = new Set(['building', 'height', 'building:levels', 'roof:levels', 'highway', 'foot', 'access', 'tunnel', 'covered', 'indoor',
-  'natural', 'leisure', 'landuse', 'diameter_crown', 'type']);
+// Keep only what SunDodge reads, so bundled area files stay small.
+const KEEP = new Set(['building', 'height', 'building:levels', 'roof:levels', 'min_height', 'building:min_level', 'layer', 'location',
+  'highway', 'foot', 'access', 'sidewalk', 'tunnel', 'covered', 'indoor', 'natural', 'leisure', 'landuse', 'diameter_crown', 'type']);
 const r6 = (v) => Math.round(v * 1e6) / 1e6;
 const pt = (p) => (p ? { lat: r6(p.lat), lon: r6(p.lon) } : null);
 export function trimOverpass(json) {

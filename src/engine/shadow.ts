@@ -1,6 +1,6 @@
 import Flatbush from 'flatbush';
 import type { Building, Sun, Tree } from './types';
-import { MIN_SUN_ALTITUDE, shadowLength } from './sun';
+import { MAX_SHADOW_LENGTH, MIN_SUN_ALTITUDE, shadowLength } from './sun';
 
 /**
  * A ground point P is in a building's shadow exactly when the ray from P
@@ -8,6 +8,12 @@ import { MIN_SUN_ALTITUDE, shadowLength } from './sun';
  * prism of height h, that ray is below the roof for the first
  * L = h / tan(altitude) metres. So P is shaded iff the 2-D segment
  * P -> P + L * sunDir touches the footprint. No polygon unions needed.
+ * This is exact for that model (flat ground, straight prisms); it is not a
+ * claim about real roofs, terrain or overhang details OSM does not map.
+ *
+ * A raised part (overhang, roof on pillars) with underside m only blocks
+ * the ray between heights m and h, i.e. along the sub-segment
+ * P + [m / tan(alt), h / tan(alt)] * sunDir.
  */
 
 export function pointInRing(x: number, y: number, ring: Float64Array): boolean {
@@ -68,6 +74,7 @@ export class ShadowField {
   private buildings: Building[];
   private trees: Tree[];
   private bLen: Float64Array;
+  private bNear: Float64Array;
   private bIndex: Flatbush | null = null;
   private tIndex: Flatbush | null = null;
 
@@ -77,6 +84,7 @@ export class ShadowField {
     this.trees = trees;
     this.night = sun.altitude <= MIN_SUN_ALTITUDE;
     this.bLen = new Float64Array(buildings.length);
+    this.bNear = new Float64Array(buildings.length);
     if (this.night) return;
 
     const [dx, dy] = sun.dir;
@@ -86,6 +94,7 @@ export class ShadowField {
         const b = buildings[i];
         const L = shadowLength(b.height, sun.altitude);
         this.bLen[i] = L;
+        this.bNear[i] = b.minHeight > 0 ? Math.min(L, shadowLength(b.minHeight, sun.altitude)) : 0;
         // Shadow region = footprint swept away from the sun by L.
         const ox = -dx * L, oy = -dy * L;
         idx.add(
@@ -100,7 +109,7 @@ export class ShadowField {
       const idx = new Flatbush(trees.length);
       const t = Math.tan(sun.altitude);
       for (const tr of trees) {
-        const sFar = Math.min(400, tr.top / t);
+        const sFar = Math.min(MAX_SHADOW_LENGTH, tr.top / t);
         const sNear = tr.base / t;
         const x1 = tr.x - dx * sNear, y1 = tr.y - dy * sNear;
         const x2 = tr.x - dx * sFar, y2 = tr.y - dy * sFar;
@@ -118,8 +127,8 @@ export class ShadowField {
     if (this.bIndex) {
       const hits = this.bIndex.search(x, y, x, y);
       for (const i of hits) {
-        const L = this.bLen[i];
-        if (segmentHitsRing(x, y, x + dx * L, y + dy * L, this.buildings[i].ring)) return 1;
+        const L = this.bLen[i], L0 = this.bNear[i];
+        if (segmentHitsRing(x + dx * L0, y + dy * L0, x + dx * L, y + dy * L, this.buildings[i].ring)) return 1;
       }
     }
     if (this.tIndex) {
@@ -127,7 +136,7 @@ export class ShadowField {
       const hits = this.tIndex.search(x, y, x, y);
       for (const i of hits) {
         const tr = this.trees[i];
-        const s1 = tr.base / t, s2 = Math.min(400, tr.top / t);
+        const s1 = tr.base / t, s2 = Math.min(MAX_SHADOW_LENGTH, tr.top / t);
         if (distPointSegment(tr.x, tr.y, x + dx * s1, y + dy * s1, x + dx * s2, y + dy * s2) <= tr.r) return 2;
       }
     }
@@ -138,12 +147,13 @@ export class ShadowField {
   buildingShadowRing(i: number): Float64Array | null {
     if (this.night) return null;
     const b = this.buildings[i];
-    const L = this.bLen[i];
+    const L = this.bLen[i], L0 = this.bNear[i];
     const ox = -this.sun.dir[0] * L, oy = -this.sun.dir[1] * L;
+    const nx = -this.sun.dir[0] * L0, ny = -this.sun.dir[1] * L0;
     const n = b.ring.length / 2;
     const pts: [number, number][] = [];
     for (let k = 0; k < n; k++) {
-      pts.push([b.ring[2 * k], b.ring[2 * k + 1]]);
+      pts.push([b.ring[2 * k] + nx, b.ring[2 * k + 1] + ny]);
       pts.push([b.ring[2 * k] + ox, b.ring[2 * k + 1] + oy]);
     }
     const hull = convexHull(pts);
@@ -158,7 +168,7 @@ export class ShadowField {
     const tr = this.trees[i];
     const t = Math.tan(this.sun.altitude);
     const [dx, dy] = this.sun.dir;
-    const s1 = tr.base / t, s2 = Math.min(400, tr.top / t);
+    const s1 = tr.base / t, s2 = Math.min(MAX_SHADOW_LENGTH, tr.top / t);
     return { x1: tr.x - dx * s1, y1: tr.y - dy * s1, x2: tr.x - dx * s2, y2: tr.y - dy * s2, r: tr.r };
   }
 }

@@ -35,7 +35,7 @@ export const DEMO_AREAS: DemoArea[] = [
     toLabel: 'Jongno 2-ga',
     date: '2026-08-05',
     time: '15:30',
-    story: '5 August 2026 was the hottest day of the summer for central Seoul in Open-Meteo’s reanalysis (feels-like up to 44 °C). Korea’s heat-illness surveillance finds cases peak between 2 and 5 pm, when students walk home.',
+    story: '5 August 2026 had the highest feels-like temperature of the summer for central Seoul in Open-Meteo’s reanalysis (model data, about 44 °C). In Korea, 522 heat-illness cases in 2025 happened on the roadside, and cases peaked between 2 and 5 pm.',
   },
   {
     id: 'nyc-midtown',
@@ -50,7 +50,7 @@ export const DEMO_AREAS: DemoArea[] = [
     toLabel: 'Rockefeller Center',
     date: '2026-07-02',
     time: '14:00',
-    story: '2 July 2026 was the hottest day of the summer for Midtown in Open-Meteo’s reanalysis (feels-like up to 44 °C). Most buildings here have real height tags in OpenStreetMap, so these shadows are close to reality.',
+    story: '2 July 2026 had the highest feels-like temperature of the summer for Midtown in Open-Meteo’s reanalysis (model data, about 44 °C). Most buildings here have a real height or floor count in OpenStreetMap, so the shadow model has good data.',
   },
 ];
 

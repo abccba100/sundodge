@@ -1,114 +1,139 @@
-# ShadeWalk — Devpost submission text
+# SunDodge — Devpost submission text
 
-**Tagline (max 200 chars):** Find the shadiest walking route and the best time to leave, using real building and tree shadows computed in your browser from OpenStreetMap and the sun's position.
+**Tagline (max 200 chars):** A walking route with less direct sun, from real building and tree shadows computed in your browser from OpenStreetMap and the sun's position.
 
-**Track:** Coding · **Theme:** Community Issues (also fits Environmental Science)
+**Track:** Coding · **Category:** Problem in the Community
 
 ---
 
 ## Inspiration
 
-In Korea, summer heat is dangerous, and it is dangerous in the afternoon.
+Summer heat is getting more dangerous, and much of it is met on foot, outdoors, in the afternoon.
 
-In 2025, Korea's emergency-department heat-illness surveillance counted **4,460 heat-illness cases**. **79.2%** of them happened outdoors, and **522 on the roadside**. Most happened **between 2 and 5 pm**, which is exactly when students walk home from school.
+- **Worldwide.** WHO, reporting the 2025 Lancet Countdown: the heat-related death rate has risen 23% since the 1990s. That is an average of about 546,000 deaths a year (2012–2021).
+- **In Korea.** Emergency departments recorded 4,460 heat-illness cases in 2025. 79.2% happened outdoors, 522 of them on the roadside. 30% of patients were 65 or older. Cases clustered between 2 and 5 pm.
 
-Around the world, heat-related deaths have risen **23% since the 1990s**, to about **546,000 a year** (Lancet Countdown 2025, via WHO).
+Shade matters more than the forecast suggests. In Tempe, Arizona, on clear days, shade from buildings and other structures cut mean radiant temperature by about 20–31 °C, while the air temperature differed by less than 1.3 °C (Middel et al., 2021). Mean radiant temperature is the radiant heat load on a person.
 
-Then I read a study that changed how I thought about the problem. In Tempe, Arizona, building shade cut **mean radiant temperature** by **22.8–30.9 °C**. That is the heat your body actually absorbs. Yet the air temperature in the same shade changed by **less than 1.3 °C** (Middel et al., 2021).
-
-So the weather forecast says almost nothing about how hot *your walk* will be. Two things matter much more: which side of the street you are on, and when you leave. Every map app optimises for distance or time. None of them asks: *how much sun will this route put on me?*
+Mainstream navigation apps route by distance or time. A few new apps and research tools route by shade. The goal of this project is an open version that anyone can run, check and take to their own city: a map that shows how much sun a walk puts on you and finds a way with less of it.
 
 ## What it does
 
-- **Moving shadows.** ShadeWalk draws 3D buildings and mapped trees, and their shadows move as you drag the time slider.
-- **Two routes compared.**
-  - It finds the **shortest route** and a **ShadeWalk route** that trades a little distance for a lot less sun.
-  - For each one you see walking time, minutes in direct sun, and the percentage of the walk in shade.
-- **When to leave.** It recomputes both routes for departures every 10 minutes across two hours, and points to the departure time with the least sun.
-  - In Midtown on 2 July 2026, leaving at 15:00 instead of 14:00 cuts the ShadeWalk route's sun time from 7.0 to 3.5 minutes.
-- **Your trade-off.** A slider sets how much you want to avoid sun. "1 m of sun = 3 m of shade" means the route will walk up to 3 m further to save 1 m of sun. This is the sun-avoidance parameter α from the CoolWalks research model.
-- **Honest data.** OpenStreetMap does not have a height for every building.
-  - ShadeWalk shows what share of heights comes from real tags.
-  - It can colour buildings by data quality: green for a height tag, yellow for floors × 3 m, red for an estimate from the building type.
-- **Weather context.** It shows feels-like temperature and direct solar radiation for that hour, from Open-Meteo. On cloudy hours it tells you that shade matters less.
-- **Works almost anywhere.** Two demo areas are pre-loaded: Jongno in Seoul and Midtown in New York. "Load this view" fetches any other area where OpenStreetMap has buildings.
+- **Two routes, compared.** SunDodge finds the shortest route and a SunDodge route that trades a little distance for less direct sun.
+  - For each you see walking time, minutes in direct sun and the share of the walk in shade.
+  - On the map, the SunDodge route is teal in shade, amber when partly sunny and orange in sun. The shortest route is dashed.
+- **Covered walkways, shown openly.** Arcades, covered alleys, building passages and underground passages count as shade.
+  - They are drawn in dashed purple.
+  - The results say how many minutes of the route use them.
+- **Moving shadows.** 3D buildings and mapped trees cast shadows that move with the time slider.
+- **Your trade-off.** "1 m of sun = 3 m of shade" means the route will walk up to 3 m further to avoid 1 m of sun. This is the α parameter of the CoolWalks model.
+- **When to leave (secondary).** Both routes are recomputed for every 10-minute departure, one hour either side, and charted.
+  - If timing makes less than a minute of difference, the app says the route matters more.
+  - Example: in Midtown on 2 July 2026, leaving at 15:00 instead of 14:00 cuts the demo walk's sun from 6.6 to 3.1 minutes.
+- **Honest data.** It shows what share of building heights comes from OSM tags, and can colour buildings by data quality.
+- **Weather.** Hourly feels-like and air temperature and direct radiation from Open-Meteo (reanalysis for past dates).
+- **Areas.** Jongno (Seoul) and Midtown (New York) are pre-cached. "Load this view" fetches another area of up to 2.5 km², in that place's own time zone.
 
-## How we built it
+## How I built it
 
-- **Stack.** TypeScript, React and Vite for the app. MapLibre GL JS draws the 3D map from the downloaded OpenStreetMap features, so no third-party tiles are needed. SunCalc gives the sun position, Flatbush provides the spatial index, and Vitest runs the tests.
-- **The key idea: a ray test instead of shadow polygons.** On flat ground, a point P is in a building's shadow exactly when the ray from P toward the sun passes through the building.
-  - The ray stays under the roof for the first **L = h / tan(sun altitude)** metres, where h is the building height.
-  - So P is shaded if and only if the 2-D segment from P toward the sun, of length L, touches the building footprint.
-  - This is exact even for L-shaped buildings. It needs only point-in-polygon and segment-crossing tests, with no polygon unions.
-  - Trees are modelled as canopy discs between a base height and a top height.
-- **Routing.** Every street segment is sampled every 4 m to get its fraction in sun.
-  - Dijkstra then minimises **metres in shade + α × metres in sun**.
-  - Tunnels, arcades and indoor corridors count as shaded.
-  - Shadows are evaluated at the middle of the walk.
-- **Speed.** Everything runs in a **Web Worker**. For Jongno (2,912 buildings, 578 trees, 127 km of walkways), one time step plus both routes took **0.2–0.4 s** in our tests.
-- **Tests.** The engine has unit tests for:
-  - sun position (Seoul at noon, morning and afternoon);
-  - exact shadow reach for a box and an L-shaped building;
-  - tree shade;
-  - night;
-  - a synthetic street pair where the shaded detour must win.
+- **Stack.** TypeScript, React and Vite.
+  - MapLibre GL JS draws the 3D map straight from OSM features, with no base-map tiles.
+  - SunCalc gives the sun position, Flatbush the spatial index and Vitest the tests.
+  - Everything runs in a Web Worker.
+- **Shadows.** This is standard shadow-ray casting, reduced to 2-D segment queries.
+  - On flat ground, a point P is shaded when the ray from P toward the sun passes through a building.
+  - For height h, the ray is under the roof for the first L = h / tan(altitude) metres. So P is shaded when the segment from P toward the sun, of length L, touches the footprint.
+  - It is exact for that model (straight-sided buildings, concave footprints included) and needs no polygon unions.
+  - Raised parts (`min_height`) only block the part of the segment between their underside and top.
+  - Trees are canopy discs between a base and a top height.
+- **Routing.** Every walkway is sampled every 4 m. Dijkstra minimises shade metres + α × sun metres, with shadows at the middle of the walk.
+- **Data rules.**
+  - Underground buildings (subway stations) cast no shadow.
+  - Road tunnels are not walkable unless pedestrians are allowed or the street runs under a mapped building.
+  - Covered and below-ground footways count as shade.
+- **Checks.**
+  - 23 unit tests.
+  - Sun positions match NREL's Solar Position Algorithm within 0.13° in the test cases.
+  - A seeded evaluation on 200 random walks per area (`npm run evaluate`).
 
 ## Results
 
-| Walk | Shortest route | ShadeWalk route |
-|---|---|---|
-| Jongno, Seoul: Gwanghwamun Square → Jongno 2-ga, 5 Aug 2026, 15:30 | 13.3 min walk, 11.4 min in direct sun | 17.0 min walk, 4.8 min in direct sun (−58%) |
-| Midtown, New York: Penn Station → Rockefeller Center, 2 Jul 2026, 14:00 | 23.4 min walk, 17.1 min in direct sun | 23.8 min walk, 7.0 min in direct sun (−59%) |
+Median results for 200 random walks per area (0.5–1.5 km, leaving at 15:00). These are model output on OSM data.
 
-Both dates were the hottest day of summer 2026 for that area in Open-Meteo's reanalysis, with a feels-like maximum of about 44 °C.
+| Area | Shortest route: min in sun | SunDodge route: min in sun | Sun saved | Extra walking |
+|---|---|---|---|---|
+| Midtown, New York, 2 Jul 2026 | 4.9 | 1.2 | 3.6 min (73%) | 0.4 min |
+| Jongno, Seoul, 5 Aug 2026 | 10.3 | 7.8 | 2.1 min (21%) | 0.8 min |
 
-In grid cities, several routes can share the shortest length. Part of the saving can therefore come from picking the shadier of two equally short routes, which is still a real choice a walker can make.
+What the numbers mean:
 
-## Challenges we ran into
+- **Seoul gains less.** Only 13% of its building heights are tagged in OSM (90% in Midtown), and its streets are irregular.
+- **Timing gains are small.** The best departure within an hour saves a median of 0.6 min. The route matters more.
+- **The demo walks are chosen to illustrate, and are better than typical.**
+  - Penn Station → Rockefeller Center at 14:00: 18.4 → 6.6 min of sun (−64%) for 1.3 min more walking, including 1.9 min on covered ways.
+  - Gwanghwamun → Jongno 2-ga at 15:30: 11.4 → 4.8 min (−58%), including 4.2 min in Pimatgol, a covered historic alley.
 
-- **The azimuth convention.** SunCalc 1.x measures azimuth from south. A wrong convention would mirror every shadow. A unit test now checks that the sun is in the south at noon in Seoul, in the east in the morning and in the west in the afternoon.
-- **Shadows of oddly shaped buildings.** Merging thousands of shadow polygons every time the slider moved was too slow. Reframing the problem as one ray test per point made it exact and fast.
-- **Missing building heights.**
-  - In our Jongno area only 13% of buildings (366 of 2,912) have a height or floor count in OpenStreetMap. In Midtown Manhattan it is 90% (2,071 of 2,296).
-  - Instead of hiding this, we made data quality visible in the app.
-- **Respecting free services.** The Overpass API is volunteer-run. The demo areas are pre-cached as static files. Live loading is one user-confirmed request at a time, with a cooldown.
+## Challenges I ran into
 
-## Accomplishments that we're proud of
+- **An AI review found real bugs.** Before submitting, I had an AI "red team" attack the project, then checked each claim against OSM and the sources. It found:
+  - Three subway stations in the New York data drawn as 12 m buildings over Times Square and Park Avenue. My first trimming step had dropped the `layer` and `location` tags.
+  - Car tunnels counted as walkable, fully shaded paths.
+  - Areas loaded live used the viewer's time zone instead of the place's.
+  - Wrong claims in my first draft: "map apps never consider the sun" and "nobody suggests when to leave" were not true, and a statistic was misattributed.
 
-- A shade router that works in **any city with OpenStreetMap buildings**, fully **in the browser**, with no server or API key.
-- The **"when to leave"** feature. The prior work we found does shaded routing for a fixed departure time, but none of it suggests *when* to go.
-  - Cool Walks covers Barcelona with LiDAR.
-  - HeiGIT covers German cities.
-  - The CoolWalks model is research code.
-- An exact and simple shadow test, backed by unit tests.
+  I fixed all of these. I restored the tags with a tags-only Overpass query, added tunnel and underground rules, added a time-zone lookup, and rewrote the claims.
+- **Missing building heights.** Only 13% of buildings in the Jongno area have a height or floor count in OSM (90% in Midtown). Instead of hiding this, the app shows it.
+- **Respecting free services.** The Overpass API is volunteer-run. The demo areas are pre-cached, and live loading is one confirmed request at a time with a cooldown.
+- **Recording the demo.** The 3D map rendered slowly in a software-only browser, and normal screen recording dropped frames. The video is captured on a virtual clock instead: one frame is taken after each computation finishes.
 
-## What we learned
+## Accomplishments that I'm proud of
 
-- Radiant heat, not air temperature, is what makes a sunny street dangerous.
-- Small reframings, such as "is the ray to the sun blocked?" instead of "what shape is the shadow?", can turn a slow geometry problem into a fast one.
-- Open data is powerful but uneven. Showing users where it is weak builds more trust than pretending it is perfect.
+- A shade router that runs entirely in the browser with no backend of its own, and can load any OSM area of up to 2.5 km².
+- Data-quality transparency and a reproducible evaluation, including where SunDodge does not help much.
+- An exact (for its model) and simple shadow test, backed by tests.
+
+## What I learned
+
+- Radiant heat, not air temperature, is what makes a sunny street harsh.
+- Open data is powerful but uneven: one missing tag can put a phantom building over Times Square.
+- Measuring typical results is more honest, and more useful, than showing the best example.
 
 ## What's next
 
-- **Fill in Korean building heights from Korea's official building register**, which records floor counts. This would close the Seoul data gap.
-- **Time-dependent routing**, where shadows move during the walk itself.
-- **School-commute mode.** A teacher or parent sets the school and a few home areas, and ShadeWalk suggests the safest departure times for heatwave days.
-- **Offline PWA, and terrain**, for hilly cities.
+- Building heights for Korea from the official building register.
+- Sampling sidewalks at the building line instead of the road centre line.
+- Shadows that move during the walk (time-dependent routing).
+- A school-commute mode that suggests the least-sun routes for a school's catchment.
 
 ## Built with
 
 typescript · react · vite · maplibre-gl · suncalc · flatbush · vitest · openstreetmap · overpass-api · open-meteo · web-workers · github-pages
 
-## AI use
+## How this was built (AI use)
 
-I used Claude (Anthropic) as a coding assistant to help write and test the code and the documentation. The idea, design choices and final review are mine. The demo video's narration is AI text-to-speech (Kokoro-82M, an open-weight model) reading a script drafted with Claude's help; the video says so in its closing credits.
+I built SunDodge with heavy help from Claude (Anthropic), an AI assistant.
+
+- **What Claude did.**
+  - Suggested three project ideas; I chose this one.
+  - Wrote most of the code, the tests, the README and this text.
+  - Made the demo video: recording, script and editing. The narration is AI text-to-speech (Kokoro-82M).
+  - Ran the AI review described above.
+- **What I did.**
+  - Chose the contest and the topic.
+  - Made the direction decisions, such as the name, what to claim and which fixes to make.
+  - Reviewed the results and tested the app.
+
+## Related work
+
+그늘로 (Seoul), ShadePath, inShade, Shade Walker (NYC), Shade Walk CS (Texas A&M), HeiGIT heat-avoiding routing, ASU Cool Routes, Cool Walks (Barcelona) and the CoolWalks model. The comparison is in the README.
+
+SunDodge was called ShadeWalk while it was being built and was renamed because other projects use that name.
 
 ## References
 
-1. WHO news release on the 2025 Lancet Countdown report, 29 Oct 2025. https://www.who.int/news/item/29-10-2025-climate-inaction-is-claiming-millions-of-lives-every-year--warns-new-lancet-countdown-report
-2. Newsis, 14 May 2026, reporting KDCA heat-illness surveillance for 2025. https://www.newsis.com/view/NISX20260514_0003629135
-3. Middel, A. et al. (2021). 50 Grades of Shade. *Bulletin of the American Meteorological Society* 102(9). https://journals.ametsoc.org/view/journals/bams/102/9/BAMS-D-20-0193.1.xml
-4. Wolf, Vierø, Szell. CoolWalks, arXiv:2405.01225. https://arxiv.org/abs/2405.01225
-5. Cool Walks app (Barcelona Regional), Freethink, 17 Jul 2021. https://www.freethink.com/energy/cool-walks
-6. HeiGIT, heat-avoiding routing, 2026. https://heigit.org/introducing-the-technology-behind-heat-avoiding-routing-how-a-heidelberg-research-initiative-became-a-nationally-scalable-open-source-tool/
-7. OpenStreetMap Wiki, Key:building:levels (3 m per floor). https://wiki.openstreetmap.org/wiki/Key:building:levels
+See the README for the full list. The main sources:
+
+- WHO news release on the 2025 Lancet Countdown, 29 Oct 2025
+- Newsis, 14 May 2026, on KDCA heat-illness surveillance for 2025
+- Middel et al. 2021, *BAMS* 102(9)
+- Wolf, Vierø, Szell, CoolWalks, arXiv:2405.01225

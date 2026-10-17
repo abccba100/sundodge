@@ -1,6 +1,8 @@
 import type { Area, Building, HeightSource, LngLat, Tree } from '../engine/types';
 import { makeProjection, type Projection } from '../engine/project';
+import Flatbush from 'flatbush';
 import { buildGraph, type WayInput } from '../engine/graph';
+import { pointInRing } from '../engine/shadow';
 
 /** Overpass QL used both by the in-app loader and by scripts/fetch-area.mjs. */
 export function overpassQuery(bounds: [number, number, number, number]): string {
@@ -54,27 +56,54 @@ const WALKABLE = new Set([
   'steps', 'track', 'cycleway', 'corridor', 'crossing',
 ]);
 
+/** Roads meant for cars. A tunnel on one of these is a road tunnel unless pedestrians are explicitly allowed. */
+const MOTOR = new Set([
+  'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link',
+  'residential', 'unclassified', 'service', 'track',
+]);
+const FOOT_OK = new Set(['yes', 'designated', 'permissive']);
+const SIDEWALK_OK = new Set(['yes', 'both', 'left', 'right']);
+
+/**
+ * Parses an OSM length in metres ("12", "12 m", "12.5", "40'", "13'6\"", "40 ft").
+ * Returns null for anything implausible (≤ 0 or ≥ 1000 m) or ambiguous ("1,234").
+ */
 export function parseLength(v: string | undefined): number | null {
   if (!v) return null;
-  const s = v.trim().replace(',', '.');
-  const ft = /(\d+(?:\.\d+)?)\s*(?:'|ft|feet)/i.exec(s);
-  if (ft) return parseFloat(ft[1]) * 0.3048;
-  const m = /^(\d+(?:\.\d+)?)/.exec(s);
-  if (!m) return null;
-  const x = parseFloat(m[1]);
+  const s = v.trim();
+  if (/^\d{1,3},\d{3}/.test(s)) return null; // thousands separator: ambiguous, skip
+  let x: number;
+  const ftIn = /^(\d+(?:[.,]\d+)?)\s*(?:'|ft|feet)\s*(?:(\d+(?:[.,]\d+)?)\s*(?:"|in|inch(?:es)?))?/i.exec(s);
+  if (ftIn) {
+    x = parseFloat(ftIn[1].replace(',', '.')) * 0.3048 + (ftIn[2] ? parseFloat(ftIn[2].replace(',', '.')) * 0.0254 : 0);
+  } else {
+    const m = /^(\d+(?:[.,]\d+)?)/.exec(s);
+    if (!m) return null;
+    x = parseFloat(m[1].replace(',', '.'));
+  }
   return Number.isFinite(x) && x > 0 && x < 1000 ? x : null;
 }
 
-export function buildingHeight(tags: Record<string, string>): { h: number; src: HeightSource } {
+/** Underground or indoor-below-ground features (layer < 0 or location=underground). */
+export function isUnderground(tags: Record<string, string>): boolean {
+  const layer = parseFloat(tags.layer ?? '0');
+  return (Number.isFinite(layer) && layer < 0) || tags.location === 'underground';
+}
+
+export function buildingHeight(tags: Record<string, string>): { h: number; src: HeightSource; min: number } {
+  const minLv = parseLength(tags['building:min_level']);
+  const min = parseLength(tags.min_height) ?? (minLv ? minLv * METRES_PER_LEVEL : 0);
   const h = parseLength(tags.height);
-  if (h) return { h, src: 'height' };
+  if (h && h > min) return { h, src: 'height', min };
   const lv = parseLength(tags['building:levels']);
   if (lv) {
     const roof = parseLength(tags['roof:levels']) ?? 0;
-    return { h: (lv + roof) * METRES_PER_LEVEL, src: 'levels' };
+    // building:levels counts the levels of this part, starting at its underside.
+    return { h: min + (lv + roof) * METRES_PER_LEVEL, src: 'levels', min };
   }
   const kind = tags.building ?? 'yes';
-  return { h: DEFAULT_HEIGHT[kind] ?? DEFAULT_OTHER, src: 'estimate' };
+  const est = DEFAULT_HEIGHT[kind] ?? DEFAULT_OTHER;
+  return { h: Math.max(est, min + METRES_PER_LEVEL), src: 'estimate', min };
 }
 
 function ringFromGeom(geom: (OsmGeomPoint | null)[] | undefined, proj: Projection): Float64Array | null {
@@ -147,13 +176,17 @@ export function parseOverpass(json: OverpassJson, opt: ParseOptions): { area: Ar
   let withH = 0, withL = 0;
 
   const addBuilding = (id: number, tags: Record<string, string>, geom: (OsmGeomPoint | null)[]) => {
+    // Underground stations, car parks and passages are mapped as buildings too; they cast no shadow.
+    if (isUnderground(tags)) return;
     const ring = ringFromGeom(geom, proj);
     if (!ring) return;
-    const { h, src } = buildingHeight(tags);
+    const { h, src, min } = buildingHeight(tags);
     if (src === 'height') withH++;
     if (src === 'levels') withL++;
-    buildings.push({ id, ring, height: h, heightSource: src, kind: tags.building ?? 'yes', bbox: bboxOf(ring) });
+    buildings.push({ id, ring, height: h, minHeight: min, heightSource: src, kind: tags.building ?? 'yes', bbox: bboxOf(ring) });
   };
+  // Road tunnels are only walkable if pedestrians are allowed or the "tunnel" is a road running under a building.
+  const tunnelCandidates: { way: WayInput; pts: [number, number][] }[] = [];
 
   for (const el of json.elements) {
     const tags = el.tags ?? {};
@@ -161,7 +194,7 @@ export function parseOverpass(json: OverpassJson, opt: ParseOptions): { area: Ar
       const [x, y] = proj.toXY(el.lon, el.lat);
       const crown = parseLength(tags.diameter_crown);
       const top = parseLength(tags.height) ?? 8;
-      trees.push({ x, y, r: crown ? crown / 2 : 3, top, base: Math.max(2, top * 0.3) });
+      trees.push({ x, y, r: crown ? crown / 2 : 3, top, base: Math.min(Math.max(2, top * 0.3), top * 0.5) });
       continue;
     }
     if (el.type === 'way' && tags.building && el.geometry) {
@@ -185,8 +218,17 @@ export function parseOverpass(json: OverpassJson, opt: ParseOptions): { area: Ar
         coords.push(x, y);
         ids.push(el.nodes![i]);
       });
-      const covered = tags.tunnel === 'yes' || tags.tunnel === 'building_passage' || tags.covered === 'yes' || tags.indoor === 'yes' || hw === 'corridor';
-      ways.push({ kind: hw, coords, ids, covered });
+      const underground = isUnderground(tags);
+      const covered = underground || tags.tunnel === 'yes' || tags.tunnel === 'building_passage' || tags.covered === 'yes' || tags.indoor === 'yes' || hw === 'corridor';
+      const way: WayInput = { kind: hw, coords, ids, covered };
+      const roadTunnel = MOTOR.has(hw) && (tags.tunnel === 'yes' || (underground && tags.tunnel !== 'building_passage'));
+      if (roadTunnel && !FOOT_OK.has(tags.foot ?? '') && !SIDEWALK_OK.has(tags.sidewalk ?? '')) {
+        const pts: [number, number][] = [];
+        for (let k = 0; k < coords.length; k += 2) pts.push([coords[k], coords[k + 1]]);
+        tunnelCandidates.push({ way, pts });
+        continue;
+      }
+      ways.push(way);
       continue;
     }
     if (el.type === 'way' && tags.natural === 'tree_row' && el.geometry) {
@@ -205,6 +247,27 @@ export function parseOverpass(json: OverpassJson, opt: ParseOptions): { area: Ar
     if (el.type === 'way' && el.geometry && (tags.leisure === 'park' || tags.landuse === 'grass' || tags.natural === 'water')) {
       const ring = el.geometry.filter((p): p is OsmGeomPoint => !!p).map((p) => [p.lon, p.lat] as LngLat);
       if (ring.length >= 4) decor.push({ kind: tags.natural === 'water' ? 'water' : 'park', rings: [ring] });
+    }
+  }
+
+  // A road "tunnel" that runs under a mapped building (e.g. a street passing beneath an arcade
+  // building) is usually walkable at street level; a real road tunnel is not.
+  if (tunnelCandidates.length) {
+    const idx = buildings.length ? new Flatbush(buildings.length) : null;
+    if (idx) { for (const b of buildings) idx.add(b.bbox[0], b.bbox[1], b.bbox[2], b.bbox[3]); idx.finish(); }
+    for (const c of tunnelCandidates) {
+      let total = 0, under = 0;
+      for (let k = 1; k < c.pts.length; k++) {
+        const [x0, y0] = c.pts[k - 1], [x1, y1] = c.pts[k];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        const n = Math.max(1, Math.ceil(len / 5));
+        for (let j = 0; j < n; j++) {
+          const x = x0 + ((j + 0.5) / n) * (x1 - x0), y = y0 + ((j + 0.5) / n) * (y1 - y0);
+          total += len / n;
+          if (idx && idx.search(x, y, x, y).some((i) => pointInRing(x, y, buildings[i].ring))) under += len / n;
+        }
+      }
+      if (total > 0 && under / total >= 0.5) ways.push(c.way);
     }
   }
 

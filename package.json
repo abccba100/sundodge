@@ -1,5 +1,5 @@
 {
-  "name": "shadewalk",
+  "name": "sundodge",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,9 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "fetch-area": "node scripts/fetch-area.mjs"
+    "fetch-area": "node scripts/fetch-area.mjs",
+    "lint:areas": "tsx scripts/lint-areas.ts",
+    "evaluate": "tsx scripts/evaluate.ts"
   },
   "dependencies": {
+    "@photostructure/tz-lookup": "11.7.0",
     "flatbush": "^4.4.0",
     "maplibre-gl": "^5.6.0",
     "react": "^19.1.0",

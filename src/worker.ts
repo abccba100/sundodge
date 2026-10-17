@@ -1,13 +1,15 @@
 /// <reference lib="webworker" />
 import { parseOverpass, type OverpassJson } from './data/osm';
-import { Planner } from './engine/planner';
+import { Planner, WALK_SPEED } from './engine/planner';
 import type { Area } from './engine/types';
 import type { Projection } from './engine/project';
-import type { FromWorker, ToWorker, RouteOut } from './protocol';
+import type { FromWorker, ToWorker, RouteOut, PlanRow } from './protocol';
 
 let area: Area | null = null;
 let proj: Projection | null = null;
 let planner: Planner | null = null;
+/** Latest plan request; an older plan stops as soon as a newer one arrives. */
+let latestPlan = 0;
 
 const post = (m: FromWorker, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 
@@ -74,7 +76,8 @@ function routeOut(r: NonNullable<ReturnType<Planner['route']>>, snapSun: Float32
   const g = area!.graph;
   const coords = r.nodes.map((n) => proj!.toLL(g.nodeX[n], g.nodeY[n]));
   const segSun = r.edges.map((e) => snapSun[e]);
-  return { coords, segSun, lengthM: r.lengthM, minutes: r.minutes, sunMinutes: r.sunMinutes, sunM: r.sunM, treeM: r.treeM, shadePct: r.shadePct };
+  const segCovered = r.edges.map((e) => g.edgeCovered[e]);
+  return { coords, segSun, segCovered, lengthM: r.lengthM, minutes: r.minutes, sunMinutes: r.sunMinutes, sunM: r.sunM, treeM: r.treeM, coveredM: r.coveredM, coveredMinutes: r.coveredM / WALK_SPEED / 60, shadePct: r.shadePct };
 }
 
 self.onmessage = (ev: MessageEvent<ToWorker>) => {
@@ -117,11 +120,28 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
       return;
     }
     if (m.type === 'plan') {
-      const src = planner.nearestNode(m.from[0], m.from[1]);
-      const dst = planner.nearestNode(m.to[0], m.to[1]);
-      const rows = planner.departures(src, dst, m.timesISO.map((t) => new Date(t)), m.alpha)
-        .map((r) => (r ? { ...r, time: r.time.toISOString() } : null));
-      post({ type: 'planned', seq: m.seq, rows });
+      // One departure per task, so that a pending 'compute' (the user moving a slider) is not
+      // stuck behind the whole chart, and a newer plan cancels this one.
+      latestPlan = m.seq;
+      const pl = planner;
+      const src = pl.nearestNode(m.from[0], m.from[1]);
+      const dst = pl.nearestNode(m.to[0], m.to[1]);
+      const p = pl.shortestByLength(src, dst);
+      const times = m.timesISO.map((t) => new Date(t));
+      const rows: (PlanRow | null)[] = [];
+      const step = (i: number) => {
+        if (m.seq !== latestPlan || planner !== pl) return;
+        if (i === times.length) { post({ type: 'planned', seq: m.seq, rows }); return; }
+        try {
+          const r = pl.departure(src, dst, times[i], m.alpha, p);
+          rows.push(r ? { ...r, time: r.time.toISOString() } : null);
+        } catch (err) {
+          post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+          return;
+        }
+        setTimeout(() => step(i + 1), 0);
+      };
+      step(0);
       return;
     }
   } catch (err) {

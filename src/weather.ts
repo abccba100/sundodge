@@ -14,7 +14,7 @@ export interface WeatherHour {
 const cache = new Map<string, WeatherHour[] | null>();
 
 export async function fetchWeather(lat: number, lng: number, day: string, tz: string): Promise<WeatherHour[] | null> {
-  const key = `${lat.toFixed(2)},${lng.toFixed(2)},${day}`;
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)},${day},${tz}`;
   if (cache.has(key)) return cache.get(key)!;
   const today = new Date();
   const d = new Date(`${day}T12:00:00`);
@@ -45,7 +45,7 @@ export async function fetchWeather(lat: number, lng: number, day: string, tz: st
     cache.set(key, rows);
     return rows;
   } catch {
-    cache.set(key, null);
+    // Do not cache failures: a network hiccup should not hide the weather for the whole session.
     return null;
   }
 }

@@ -8,6 +8,8 @@ export interface Building {
   /** Outer ring in local metres, flattened [x0, y0, x1, y1, ...], not closed. */
   ring: Float64Array;
   height: number;
+  /** Height of the underside (m): 0 for a normal building, > 0 for an overhang, a roof on pillars or a bridge. */
+  minHeight: number;
   heightSource: HeightSource;
   kind: string;
   /** Local bbox [minX, minY, maxX, maxY]. */

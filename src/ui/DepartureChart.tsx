@@ -8,7 +8,7 @@ interface Props {
   onPick: (iso: string) => void;
 }
 
-/** Minutes in direct sun for each departure time: ShadeWalk route (bars) vs shortest route (line). */
+/** Minutes in direct sun for each departure time: SunDodge route (bars) vs shortest route (line). */
 export function DepartureChart({ rows, current, tz, onPick }: Props) {
   const ok = rows.filter((r): r is PlanRow => !!r);
   if (!ok.length) return <p className="muted">No route for these points.</p>;
@@ -44,7 +44,7 @@ export function DepartureChart({ rows, current, tz, onPick }: Props) {
       })}
       <polyline points={linePts} className="shortline" />
     </svg>
-    <p className="muted chart-key">Minutes in direct sun if you leave at each time · bars: ShadeWalk route · dashed line: shortest route. Tap a bar to pick that time.</p>
+    <p className="muted chart-key">Minutes in direct sun if you leave at each time · bars: SunDodge route · dashed line: shortest route. Tap a bar to pick that time.</p>
     </>
   );
 }

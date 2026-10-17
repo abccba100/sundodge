@@ -9,11 +9,15 @@ export interface RouteOut {
   coords: LngLat[];
   /** Sun fraction of each segment (same order as coords pairs). */
   segSun: number[];
+  /** 1 where the segment is a covered way (arcade, covered alley, underground or indoor passage). */
+  segCovered: number[];
   lengthM: number;
   minutes: number;
   sunMinutes: number;
   sunM: number;
   treeM: number;
+  coveredM: number;
+  coveredMinutes: number;
   shadePct: number;
 }
 

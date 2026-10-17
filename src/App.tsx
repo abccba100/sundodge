@@ -8,7 +8,8 @@ import type { AreaStats, LngLat } from './engine/types';
 import { fmtClock, minuteInZone, parseClock, zonedToDate } from './time';
 import { fetchWeather, type WeatherHour } from './weather';
 import { overpassQuery } from './data/osm';
-import { sunTimes } from './engine/sun';
+import tzlookup from '@photostructure/tz-lookup';
+import { sunWindow } from './sunwindow';
 import { DepartureChart } from './ui/DepartureChart';
 
 type Computed = Extract<FromWorker, { type: 'computed' }>;
@@ -26,6 +27,11 @@ export default function App() {
   const streetFC = useRef<GeoJSON.FeatureCollection>(emptyFC());
   const seq = useRef(0);
   const planSeq = useRef(0);
+  /** Area id the worker is expected to hold next; 'loaded' messages for anything else are ignored. */
+  const expectedLoad = useRef<string | null>(null);
+  /** Bumped on every area switch so that a slow fetch for an older area is dropped. */
+  const loadToken = useRef(0);
+  const sentAt = useRef(new Map<number, number>());
 
   const [mapReady, setMapReady] = useState(false);
   const [area, setArea] = useState<DemoArea>(DEMO_AREAS[0]);
@@ -44,12 +50,13 @@ export default function App() {
   const [showConfidence, setShowConfidence] = useState(false);
   const [liveAsk, setLiveAsk] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [latency, setLatency] = useState<number | null>(null);
 
   const depart = useMemo(() => zonedToDate(day, minute, area.tz), [day, minute, area.tz]);
-  const sunInfo = useMemo(() => {
-    const t = sunTimes(zonedToDate(day, 720, area.tz), (area.bounds[1] + area.bounds[3]) / 2, (area.bounds[0] + area.bounds[2]) / 2);
-    return { rise: minuteInZone(t.sunrise, area.tz), set: minuteInZone(t.sunset, area.tz) };
-  }, [day, area]);
+  const sunInfo = useMemo(
+    () => sunWindow(day, area.tz, (area.bounds[1] + area.bounds[3]) / 2, (area.bounds[0] + area.bounds[2]) / 2),
+    [day, area],
+  );
 
   // ---------- worker ----------
   useEffect(() => {
@@ -58,8 +65,14 @@ export default function App() {
     w.onmessage = (ev: MessageEvent<FromWorker>) => {
       const m = ev.data;
       if (m.type === 'error') { setError(m.message); setLoading(null); return; }
-      if (m.type === 'loaded') onLoaded(m);
-      if (m.type === 'computed') { if (m.seq === seq.current) { setResult(m); paintCompute(m); } }
+      if (m.type === 'loaded') { if (m.id === expectedLoad.current) onLoaded(m); return; }
+      if (m.type === 'computed') {
+        if (m.seq !== seq.current) return;
+        const t0 = sentAt.current.get(m.seq);
+        sentAt.current.clear();
+        setLatency(t0 === undefined ? null : performance.now() - t0);
+        setResult(m); paintCompute(m);
+      }
       if (m.type === 'planned') { if (m.seq === planSeq.current) setPlan(m.rows); }
     };
     return () => w.terminate();
@@ -134,6 +147,10 @@ export default function App() {
           'line-color': ['interpolate', ['linear'], ['get', 's'], 0, '#0f766e', 0.4, '#0f766e', 0.6, '#f59e0b', 1, '#ea580c'],
         },
       });
+      m.addLayer({
+        id: 'route-covered', type: 'line', source: 'route-shady', filter: ['==', ['get', 'c'], 1], layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        paint: { 'line-color': '#6d28d9', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 4, 17, 8], 'line-dasharray': [1.2, 0.8] },
+      });
       setMapReady(true);
     });
     m.on('click', (e) => {
@@ -155,6 +172,7 @@ export default function App() {
 
   // ---------- area loading ----------
   const loadDemo = useCallback(async (a: DemoArea) => {
+    const token = ++loadToken.current;
     setError(null);
     setLoading(`Loading ${a.name}…`);
     setResult(null); setPlan(null);
@@ -162,12 +180,24 @@ export default function App() {
       const r = await fetch(BASE + a.file);
       if (!r.ok) throw new Error(`Could not load ${a.file} (${r.status})`);
       const json = await r.json();
+      if (token !== loadToken.current) return; // the user picked another area meanwhile
+      expectedLoad.current = a.id;
       send({ type: 'load', id: a.id, name: a.name, bounds: a.bounds, json });
     } catch (e) {
+      if (token !== loadToken.current) return;
       setError(String(e instanceof Error ? e.message : e));
       setLoading(null);
     }
   }, []);
+
+  /** Forget everything computed for the previous area. */
+  const resetForSwitch = () => {
+    seq.current++; planSeq.current++;
+    expectedLoad.current = null;
+    setResult(null); setPlan(null); setLoadedId(null); setLatency(null);
+    const mm = map.current;
+    if (mm && mapReady) for (const id of ['route-short', 'route-shady', 'shadows']) (mm.getSource(id) as GeoJSONSource | undefined)?.setData(emptyFC());
+  };
 
   useEffect(() => {
     // Load the first demo area once the map is ready; later switches go through pickArea.
@@ -209,7 +239,7 @@ export default function App() {
     const routeFC = (r: RouteOut | null): GeoJSON.FeatureCollection => r
       ? {
           type: 'FeatureCollection',
-          features: r.segSun.map((s, i) => ({ type: 'Feature', properties: { s }, geometry: { type: 'LineString', coordinates: [r.coords[i], r.coords[i + 1]] } })),
+          features: r.segSun.map((s, i) => ({ type: 'Feature', properties: { s, c: r.segCovered[i] }, geometry: { type: 'LineString', coordinates: [r.coords[i], r.coords[i + 1]] } })),
         }
       : emptyFC();
     (mm.getSource('route-short') as GeoJSONSource).setData(routeFC(m.shortest));
@@ -223,7 +253,10 @@ export default function App() {
   useEffect(() => {
     if (!loadedId) return;
     const id = ++seq.current;
-    const t = setTimeout(() => send({ type: 'compute', seq: id, departISO: depart.toISOString(), alpha, from, to }), 30);
+    const t = setTimeout(() => {
+      sentAt.current.set(id, performance.now());
+      send({ type: 'compute', seq: id, departISO: depart.toISOString(), alpha, from, to });
+    }, 30);
     return () => clearTimeout(t);
   }, [loadedId, depart, alpha, from, to]);
 
@@ -268,7 +301,8 @@ export default function App() {
   const pickArea = (id: string) => {
     const a = DEMO_AREAS.find((x) => x.id === id);
     if (!a) return;
-    setArea(a); setDay(a.date); setMinute(parseClock(a.time)); setFrom(a.from); setTo(a.to); setLoadedId(null);
+    resetForSwitch();
+    setArea(a); setDay(a.date); setMinute(parseClock(a.time)); setFrom(a.from); setTo(a.to);
     loadDemo(a);
   };
 
@@ -293,25 +327,37 @@ export default function App() {
     lastLive.current = Date.now();
     const bb = viewBounds();
     if (!bb) return;
+    const token = ++loadToken.current;
     setError(null);
     setLoading('Downloading streets, buildings and trees from OpenStreetMap…');
     const q = overpassQuery(bb);
-    let json: unknown = null;
+    let json: { elements?: unknown[]; remark?: string } | null = null;
+    let problem = '';
     for (const ep of OVERPASS) {
       try {
-        const r = await fetch(ep, { method: 'POST', body: new URLSearchParams({ data: q }) });
-        if (r.ok) { json = await r.json(); break; }
-      } catch { /* try next */ }
+        const r = await fetch(ep, { method: 'POST', body: new URLSearchParams({ data: q }), signal: AbortSignal.timeout(100_000) });
+        if (!r.ok) { problem = `HTTP ${r.status}`; continue; }
+        const j = await r.json();
+        // Overpass reports timeouts and memory limits with HTTP 200 and a "remark"; the data is then incomplete.
+        if (!Array.isArray(j.elements) || j.remark) { problem = j.remark ? String(j.remark).slice(0, 120) : 'no data'; continue; }
+        json = j; break;
+      } catch (e) { problem = e instanceof Error ? e.name : 'network error'; }
     }
-    if (!json) { setLoading(null); setError('The Overpass API did not answer. It is a free shared service — please try again in a minute.'); return; }
+    if (token !== loadToken.current) return; // the user switched areas while we waited
+    if (!json) { setLoading(null); setError(`The Overpass API could not deliver this area (${problem}). It is a free shared service — please try again in a minute, or zoom in.`); return; }
+    if (json.elements!.length === 0) { setLoading(null); setError('OpenStreetMap has no streets or buildings here. Try a town or city.'); return; }
     const c: LngLat = [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Use the time zone of the place on screen, not the viewer's, so clock, sunrise and weather are local.
+    let tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    try { tz = tzlookup(c[1], c[0]); } catch { /* keep the browser zone */ }
     const live: DemoArea = {
       id: `live-${bb.map((v) => v.toFixed(4)).join('_')}`, name: 'This view', city: 'Custom', file: '', bounds: bb, tz,
       from: [c[0] - (bb[2] - bb[0]) / 4, c[1]], to: [c[0] + (bb[2] - bb[0]) / 4, c[1]], fromLabel: 'A', toLabel: 'B',
       date: day, time: fmtClock(minute), story: 'Loaded live from OpenStreetMap for the area on screen.',
     };
-    setArea(live); setFrom(live.from); setTo(live.to); setResult(null); setPlan(null); setLoadedId(null);
+    resetForSwitch();
+    setArea(live); setFrom(live.from); setTo(live.to);
+    expectedLoad.current = live.id;
     send({ type: 'load', id: live.id, name: live.name, bounds: bb, json });
   };
 
@@ -334,8 +380,8 @@ export default function App() {
     <div className="app">
       <aside className="panel">
         <header className="brand">
-          <h1>ShadeWalk</h1>
-          <p>Walk in the shade. Leave at the right time.</p>
+          <h1>SunDodge</h1>
+          <p>Less sun on your walk.</p>
         </header>
 
         <section className="card">
@@ -358,14 +404,20 @@ export default function App() {
           </div>
           <div className="row between">
             <label className="lbl" htmlFor="time">Leave at <strong className="clock">{fmtClock(minute)}</strong></label>
-            <span className="sun">{sunDeg === null ? '' : sunDeg < 2 ? 'Sun is down' : `Sun ${sunDeg.toFixed(0)}° high`}</span>
+            <span className="sun">{sunDeg === null ? '' : sunDeg <= 0 ? 'Sun is down' : sunDeg < 2 ? 'Sun on the horizon' : `Sun ${sunDeg.toFixed(0)}° high`}</span>
           </div>
-          <input id="time" type="range" min={Math.max(0, sunInfo.rise - 30)} max={Math.min(1439, sunInfo.set + 30)} step={5} value={minute} onChange={(e) => setMinute(+e.target.value)} />
-          <div className="ticks"><span>{fmtClock(sunInfo.rise)} sunrise</span><span>sunset {fmtClock(sunInfo.set)}</span></div>
+          <input id="time" type="range" min={sunInfo.min} max={sunInfo.max} step={5} value={minute} onChange={(e) => setMinute(+e.target.value)} />
+          <div className="ticks">
+            {sunInfo.kind === 'normal' && <><span>{fmtClock(sunInfo.rise)} sunrise</span><span>sunset {fmtClock(sunInfo.set)}</span></>}
+            {sunInfo.kind === 'wrap' && <><span>00:00</span><span>sunrise {fmtClock(sunInfo.rise)} · sunset {fmtClock(sunInfo.set)} (after midnight)</span></>}
+            {sunInfo.kind === 'polar-day' && <><span>00:00</span><span>midnight sun — the sun does not set</span></>}
+            {sunInfo.kind === 'polar-night' && <><span>00:00</span><span>polar night — the sun does not rise</span></>}
+          </div>
           {wx && (
             <p className="weather">
               Feels like <strong>{Math.round(wx.feels)}°C</strong> · air {Math.round(wx.temp)}°C{wx.uv !== null ? ` · UV ${wx.uv.toFixed(0)}` : ''} · direct sun {Math.round(wx.direct)} W/m²
-              {wx.direct < 120 && <span className="note"> — cloudy: shade matters less right now</span>}
+              {wx.cloud >= 70 ? <span className="note"> — cloudy: shade matters less right now</span>
+                : wx.direct < 120 ? <span className="note"> — low sun: direct heat is weak right now</span> : null}
             </p>
           )}
         </section>
@@ -389,10 +441,16 @@ export default function App() {
               <thead><tr><th></th><th>Walk</th><th>In sun</th><th>Shade</th></tr></thead>
               <tbody>
                 <tr><td><span className="key key-short" />Shortest</td><td>{sh.minutes.toFixed(1)} min</td><td>{sh.sunMinutes.toFixed(1)} min</td><td>{sh.shadePct.toFixed(0)}%</td></tr>
-                <tr className="hl"><td><span className="key key-shady" />ShadeWalk</td><td>{sd.minutes.toFixed(1)} min</td><td>{sd.sunMinutes.toFixed(1)} min</td><td>{sd.shadePct.toFixed(0)}%</td></tr>
+                <tr className="hl"><td><span className="key key-shady" />SunDodge</td><td>{sd.minutes.toFixed(1)} min</td><td>{sd.sunMinutes.toFixed(1)} min</td><td>{sd.shadePct.toFixed(0)}%</td></tr>
               </tbody>
             </table>
             <p className="verdict">{verdict(sh, sd)}</p>
+            {(sd.coveredM >= 10 || sh.coveredM >= 10) && (
+              <p className="small covered-note">
+                <span className="key key-covered" />Covered walkways (arcades, covered alleys, underground or indoor passages) count as shade:
+                {' '}{sd.coveredMinutes.toFixed(1)} min of the SunDodge route{sh.coveredM >= 10 ? `, ${sh.coveredMinutes.toFixed(1)} min of the shortest` : ''}.
+              </p>
+            )}
           </section>
         )}
 
@@ -400,9 +458,13 @@ export default function App() {
           <section className="card">
             <h2>When to leave</h2>
             <DepartureChart rows={plan} current={zonedToDate(day, minute, area.tz).toISOString()} tz={area.tz} onPick={(iso) => setMinute(minuteInZone(new Date(iso), area.tz))} />
-            {best && best.gainMin >= 0.5 && (
-              <p className="tip">Leave at <button className="link" onClick={() => setMinute(minuteInZone(new Date(best.time), area.tz))}>{fmtClock(minuteInZone(new Date(best.time), area.tz))}</button> to cut sun to {best.sunMin.toFixed(1)} min ({best.gainMin.toFixed(1)} min less than now).</p>
+            {best && best.gainMin >= 1 && (
+              <p className="tip">
+                Leave at <button className="link" onClick={() => setMinute(minuteInZone(new Date(best.time), area.tz))}>{fmtClock(minuteInZone(new Date(best.time), area.tz))}</button> to cut sun to {best.sunMin.toFixed(1)} min ({best.gainMin.toFixed(1)} min less than now).
+                {feelsAt(weather, best.time, area.tz, wx)}
+              </p>
             )}
+            {best && best.gainMin < 1 && <p className="tip">Within an hour either way, timing barely changes your sun minutes here. The route matters more.</p>}
           </section>
         )}
 
@@ -416,7 +478,8 @@ export default function App() {
           )}
           {showConfidence && <p className="legend"><span className="sw g" />height tag <span className="sw y" />floors × 3 m <span className="sw r" />estimated</p>}
           <p className="legend"><span className="sw sun" />street in sun <span className="sw shade" />street in shade <span className="sw shadow" />shadow</p>
-          {result && <p className="muted">Computed in {result.ms.toFixed(0)} ms, in your browser.</p>}
+          <p className="legend"><span className="key key-shady" />route in shade <span className="key key-part" />partly sunny <span className="key key-sunny" />in sun <span className="key key-covered" />covered walkway <span className="key key-short" />shortest</p>
+          {result && <p className="muted">Updated in {Math.round(latency ?? result.ms)} ms (shadows and both routes: {result.ms.toFixed(0)} ms), in your browser.</p>}
         </section>
       </aside>
 
@@ -424,12 +487,12 @@ export default function App() {
         <div ref={mapDiv} className="map" />
         {loading && <div className="overlay">{loading}</div>}
         {error && <div className="overlay err" onClick={() => setError(null)}>{error}</div>}
-        {result?.night && <div className="badge">The sun is down — every street is in shade.</div>}
+        {result?.night && <div className="badge">The sun is at or below the horizon — every street counts as shade.</div>}
         {liveAsk && (
           <div className="modal-bg">
             <div className="modal">
               <h3>Load this area from OpenStreetMap?</h3>
-              <p>ShadeWalk will send one request to the free, volunteer-run Overpass API for streets, buildings and trees in up to {MAX_LIVE_AREA_KM2} km² around the map centre. Please don’t repeat it many times.</p>
+              <p>SunDodge will send one request to the free, volunteer-run Overpass API for streets, buildings and trees in up to {MAX_LIVE_AREA_KM2} km² around the map centre. Please don’t repeat it many times.</p>
               <div className="row end">
                 <button className="ghost" onClick={() => setLiveAsk(false)}>Cancel</button>
                 <button onClick={loadLive}>Load</button>
@@ -448,6 +511,15 @@ function verdict(sh: RouteOut, sd: RouteOut): string {
   if (saved < 0.3) return 'The shortest way is already about as shady as it gets right now.';
   const pct = sh.sunMinutes > 0 ? Math.round((saved / sh.sunMinutes) * 100) : 0;
   return `${extra < 0.3 ? 'Same walking time' : `+${extra.toFixed(1)} min walking`}, ${saved.toFixed(1)} min less in direct sun (−${pct}%).`;
+}
+
+/** "Feels like 41 °C then (now 43 °C)." from the hourly weather, if we have it. */
+function feelsAt(weather: WeatherHour[] | null, iso: string, tz: string, now: WeatherHour | null): string {
+  if (!weather || !now) return '';
+  const h = String(Math.floor(minuteInZone(new Date(iso), tz) / 60)).padStart(2, '0');
+  const w = weather.find((x) => x.time.slice(11, 13) === h);
+  if (!w || w === now) return '';
+  return ` Feels like ${Math.round(w.feels)}°C then (now ${Math.round(now.feels)}°C).`;
 }
 
 function pickBest(rows: (PlanRow | null)[]): { time: string; sunMin: number; gainMin: number } | null {

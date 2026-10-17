@@ -24,8 +24,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: node scripts/check-areas.mjs
+      - run: npx tsx scripts/lint-areas.ts
       - run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/

@@ -81,3 +81,7 @@ button.link { padding: 0; border: 0; background: none; color: var(--accent); fon
   .panel { order: 2; border-right: 0; border-top: 1px solid var(--line); }
   .mapwrap { order: 1; min-height: 55vh; }
 }
+.key-covered { background: repeating-linear-gradient(90deg, #6d28d9 0 5px, transparent 5px 8px); height: 6px; }
+.key-part { background: #f59e0b; height: 6px; }
+.key-sunny { background: #ea580c; height: 6px; }
+.covered-note { margin: 6px 0 0; }

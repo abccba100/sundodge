@@ -9,10 +9,10 @@ import { Planner } from './planner';
 const square = (x0: number, y0: number, w: number, h: number): Float64Array =>
   Float64Array.from([x0, y0, x0 + w, y0, x0 + w, y0 + h, x0, y0 + h]);
 
-const bld = (ring: Float64Array, height: number): Building => {
+const bld = (ring: Float64Array, height: number, minHeight = 0): Building => {
   let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
   for (let i = 0; i < ring.length; i += 2) { a = Math.min(a, ring[i]); b = Math.min(b, ring[i + 1]); c = Math.max(c, ring[i]); d = Math.max(d, ring[i + 1]); }
-  return { id: 1, ring, height, heightSource: 'height', kind: 'yes', bbox: [a, b, c, d] };
+  return { id: 1, ring, height, minHeight, heightSource: 'height', kind: 'yes', bbox: [a, b, c, d] };
 };
 
 /** Sun due south at 45 degrees: shadows point north, length = height. */
@@ -98,8 +98,8 @@ describe('routing', () => {
 
 describe('OSM parsing', () => {
   it('reads heights from height, levels and type defaults', () => {
-    expect(buildingHeight({ building: 'yes', height: '24 m' })).toEqual({ h: 24, src: 'height' });
-    expect(buildingHeight({ building: 'apartments', 'building:levels': '15' })).toEqual({ h: 45, src: 'levels' });
+    expect(buildingHeight({ building: 'yes', height: '24 m' })).toEqual({ h: 24, src: 'height', min: 0 });
+    expect(buildingHeight({ building: 'apartments', 'building:levels': '15' })).toEqual({ h: 45, src: 'levels', min: 0 });
     expect(buildingHeight({ building: 'house' }).src).toBe('estimate');
     expect(parseLength("30'")).toBeCloseTo(9.144, 3);
   });
